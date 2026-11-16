@@ -8,12 +8,14 @@ One file. `contracts/restraint.py`, class `Restraint`, is the contract.
 
 Paid garden leave whose restraint is judged, not argued. A firm holds the whole
 garden-leave pay for a leaver, together with a restraint of one to five
-numbered activities, the leaver's own profile prefix, a number of instalments
-and the length of a period. The leaver accepts by repeating the prefix. Each
+numbered activities, the leaver's own profile prefix, the firm's name and the
+day the leaver left it, a number of instalments and the length of a period. The leaver accepts by repeating the prefix. Each
 period the leaver claims that period's instalment. While the restraint runs the
 firm may report one page below the prefix; the network reads it against every
-activity, and the money moves in the same call: the unclaimed pay back to the
-firm on a breach, the report bond to the leaver when the restraint was kept.
+activity, and the money moves in the same call: the pay back to the
+firm for the periods not yet elapsed on a breach (the elapsed ones stay the
+leaver's, claimed or not), the report bond to the leaver when the restraint was
+kept or the page was a repeat.
 
 ### Consensus
 
@@ -33,9 +35,10 @@ calls; there are no others in the file. Nothing is nested.
      dropped;
    - the whitespace is collapsed; an empty text raises `[TRANSIENT]`, a text
      over `MAX_PAGE_TEXT` (6,000) characters raises `[EXPECTED]`.
-3. **The askings.** For each stored activity, `_task(activity, page,
-   ACTIVITY_FIRST)` and `_task(activity, page, PAGE_FIRST)`. A model failure
-   raises `[LLM_ERROR]`.
+3. **The askings.** `question = _question(firm, left_on)`, then for each stored
+   activity `_task(activity, page, ACTIVITY_FIRST, question)` and
+   `_task(activity, page, PAGE_FIRST, question)`. A model failure raises
+   `[LLM_ERROR]`.
 
 Each reply is read by `_read_word`: only a JSON object (or the text of one, at
 most 2,000 characters) whose `answer` is `yes`, `no` or `unclear`, case and
@@ -51,12 +54,19 @@ from `Y N U` per activity and a 16-character lowercase hex fingerprint; anything
 else reads as all `U` with no fingerprint.
 
 `_outcome(mask)`: a `Y` anywhere is `breach`; `N` for every activity is
-`kept`; anything else is `unclear`.
+`kept`; anything else is `unclear`. A report whose agreed fingerprint was
+already judged for the agreement takes the outcome `repeat` instead, with the
+earlier mask; the fingerprint is known only after the round, so it cannot be
+refused before it.
 
 ### The prompt
 
 Every asking is the constant `HEADER`, `UNTRUSTED` and `EITHER_ORDER`, the two
-blocks, then the constant `READING`, `QUESTION`, `MEANING` and `RETURN_WORD`. A
+blocks, then the constant `READING`, the question, and the constant `MEANING`
+and `RETURN_WORD`. The question is `QUESTION_HEAD + _firm_label(firm) +
+QUESTION_MID + _date_label(left_on) + QUESTION_TAIL`: the firm's name re-checked
+against the same allowlist as at admission (`_firm_problem`; "the firm" when it
+fails), the leaving day re-checked and written out as "30 October 2026". A
 block is `_block(label, text)`: the label is `ACTIVITY` or `PAGE` (anything else
 prints `BLOCK`), the body is `_fence(text)` capped at its label's limit (200 or
 6,000 characters, never less than the door lets in), and both delimiter lines
@@ -66,9 +76,10 @@ carry the first 16 hex characters of the body's own sha256. `_fence` replaces
 ### State
 
 - `agreement_rows: TreeMap[str, Agreement]`, scalars only: firm, leaver,
-  restraint, `act_1` to `act_5` and `n_acts`, prefix, total, instalments,
-  period, opened_at, accepted_at, status, claimed, paid, to_firm, reports,
-  bonds_to_leaver, closed_at, closed_by.
+  firm_name, left_on, restraint, `act_1` to `act_5` and `n_acts`, prefix,
+  total, instalments, period, opened_at, accepted_at, status, claimed, paid,
+  earned (set at a close), to_firm, reports, bonds_to_leaver, closed_at,
+  closed_by.
 - `report_rows: TreeMap[str, Report]`: agreement, firm, url, period, mask, fp,
   outcome, repeat_of, to_leaver, at.
 - `index` / `counts`: numbered lists (`party:<address>`, `reports:<id>`) for
@@ -82,11 +93,11 @@ carry the first 16 hex characters of the body's own sha256. `_fence` replaces
 
 | method | kind | does |
 |---|---|---|
-| `open_agreement(leaver, restraint, profile_prefix, instalments, period)` | payable | holds the pay; never raises after taking value |
+| `open_agreement(leaver, firm_name, left_on, restraint, profile_prefix, instalments, period)` | payable | holds the pay; never raises after taking value |
 | `accept(agreement_id, profile_prefix)` | write | the leaver; starts the restraint |
 | `cancel(agreement_id)` | write | the firm, while offered; everything back |
-| `claim(agreement_id)` | write | the leaver; the next instalment once its period ended |
-| `release(agreement_id)` | write | the leaver; the unclaimed pay back to the firm |
+| `claim(agreement_id)` | write | the leaver; the next instalment once its period ended, also after a breach or release up to `earned` |
+| `release(agreement_id)` | write | the leaver; the pay for periods not yet elapsed back to the firm |
 | `deposit()` / `withdraw()` | payable / write | report credit, the sender's own |
 | `report(agreement_id, url)` | write | the firm; one consensus round; the money moves |
 | `agreement`, `agreements_of`, `reports_of`, `credit`, `stats`, `rules` | views | paged at 20 rows |
@@ -99,6 +110,8 @@ carry the first 16 hex characters of the body's own sha256. `_fence` replaces
 | instalments | 1 to 12 |
 | period | 300 s to 31 days |
 | restraint | 8 to 1,000 characters, 1 to 5 activities of 5 to 200 |
+| firm's name | 2 to 40 characters, at most 4 words |
+| leaving day | `YYYY-MM-DD`, today to 366 days back |
 | profile prefix | at most 120 characters, ends with `/` |
 | reported page address | at most 200 characters, below the prefix |
 | report bond / unclear fee | 0.05 GEN / 0.01 GEN |
@@ -111,11 +124,14 @@ carry the first 16 hex characters of the body's own sha256. `_fence` replaces
 Period k runs from `accepted_at + (k - 1) * period` to `accepted_at + k *
 period`. Instalment k is claimable from the end of period k, in order. Reports
 are taken from acceptance until `accepted_at + instalments * period`. Claims
-have no deadline.
+have no deadline. At a breach or a release, `earned = (now - accepted_at) //
+period`, capped at the instalments: instalments 1 to `earned` stay the
+leaver's, and `_close` sends back `total - _paid_through(total, instalments,
+earned)`.
 
 ### Limits
 
 See `rules()["limits"]` and the README: a breach is final and only a page below
 the signed prefix can cause one; the network sees only what is published there;
-a stale present-tense page reads as current; an unclaimed instalment goes back
-on a breach; text only; the page must read the same for every validator.
+a page is read against the leaving day and the former firm; a breach stops only
+future instalments; text only; the page must read the same for every validator.

@@ -10,21 +10,25 @@ period, a restraint of one to five numbered activities in the firm's own words
 Tillpoint."), and the leaver's own profile prefix, one https prefix ending in
 "/" below which the leaver's own pages live. The leaver accepts it by repeating
 that prefix, so the leaver signs the very address that may be read against it;
-until then the firm may cancel and take everything back.
+the firm also names itself and the day the leaver left it, both shown to the
+leaver before accepting. Until then the firm may cancel and take everything back.
 
     claim    the leaver takes instalment k once period k has ended; no model, O(1)
     report   the firm, during the restraint, names one page below the leaver's prefix and stakes
              REPORT_BOND of its credit; the network reads that page against every activity
-    release  the leaver gives up the instalments not yet claimed; they go back to the firm
+    release  the leaver gives up the periods not yet elapsed; their pay goes back to the firm
 
 A report is one consensus block. Every validator fetches the page itself, once,
 and judges the body of that one answer (a status outside 2xx is a failed read
 and stores nothing): the tags removed, the whitespace collapsed, the first 16
 hex characters of the sha256 of that text taken. A body over 32,000
-characters, or a text over 6,000, is never judged in part: it stores nothing. For each activity it asks one question in both orders, the
-activity first and the page first:
+characters, or a text over 6,000, is never judged in part: it stores nothing.
+For each activity it asks one question in both orders, the activity first and
+the page first, with the former firm's name and the leaving date as contract
+labels:
 
-    Does the PAGE say that its author currently does the activity in the ACTIVITY block?
+    Does the PAGE show its author doing the activity in the ACTIVITY block at any time after
+    leaving <firm> on <date>?
 
     Y   yes in both orders
     N   no in both orders
@@ -34,15 +38,16 @@ The stored value is {"mask": one letter per activity, "fp": <hex16>}, compared
 by exact equality, so a page that does not read the same for every validator
 gets no consensus. The money moves in the same call:
 
-    breach    a Y anywhere: the unclaimed pay goes back to the firm, closed "breached";
-              the bond stays in the firm's credit
+    breach    a Y anywhere: future instalments stop, closed "breached"; every period fully
+              elapsed before the report stays the leaver's, claimed or not, and the pay for
+              the rest goes back to the firm; the bond stays in the firm's credit
     kept      N for every activity: the bond goes to the leaver
     unclear   anything else: UNCLEAR_FEE of the bond goes to the leaver, the rest stays in credit
+    repeat    the page reads exactly as one already judged for the agreement: it is not judged
+              again, and the whole bond goes to the leaver
 
-A page whose text reads the same as one already judged for the agreement is a
-repeat: it is refused, recorded, and the earlier reading stands, the bond moving
-as that reading sent it, so a report is never a free second roll. A breach is
-final. Only a page below the prefix the leaver signed can ever cause one.
+A report is never a free second roll, and a breach is final. Only a page below
+the prefix the leaver signed can ever cause one.
 
 A leader whose fetch or model call failed is never agreed with, so nothing is
 written and the page may be reported again. Every call is constant work: no
@@ -72,6 +77,9 @@ UNCLEAR_FEE = GEN // 100         # 0.01 GEN of it to the leaver when the reading
 MAX_ACTIVITIES = 5
 MIN_ACTIVITY, MAX_ACTIVITY = 5, 200
 MIN_RESTRAINT, MAX_RESTRAINT = 8, 1000
+MIN_FIRM, MAX_FIRM = 2, 40       # characters of the former firm's name, a label printed in the question
+MAX_FIRM_WORDS = 4
+MAX_LEFT_AGO = 366 * 86400       # the leaving day is at most this long before the agreement is opened
 MAX_PREFIX = 120                 # characters of the profile prefix
 MAX_URL = 200                    # characters of a reported page's address
 MAX_RAW_PAGE = 32000             # characters of a fetched page whose spacing is collapsed: the work never grows with it
@@ -89,6 +97,11 @@ HEX = "0123456789abcdef"
 SCHEME = "https://"
 URL_SIGNS = ("-", ".", "_", "~", "/")
 SILENT_TAGS = ("script", "style")  # the text after these tags is code, not words a visitor reads
+FIRM_SIGNS = (" ", "&", ".", "-", "'")   # the only characters of a firm's name besides letters and digits
+FIRM_FALLBACK = "the firm"
+DATE_FALLBACK = "the day the agreement names"
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
 
 # The answer alphabet. An answer the contract cannot read is "", which lands as U; reading never raises.
 YES = "yes"
@@ -104,14 +117,15 @@ MASK_LETTERS = (M_YES, M_NO, M_UNCLEAR)
 O_BREACH = "breach"
 O_KEPT = "kept"
 O_UNCLEAR = "unclear"
-OUTCOMES = (O_BREACH, O_KEPT, O_UNCLEAR)
+O_REPEAT = "repeat"
+OUTCOMES = (O_BREACH, O_KEPT, O_UNCLEAR, O_REPEAT)
 
 # Where an agreement is.
 ST_OFFERED = "offered"           # opened, the pay held, waiting for the leaver
 ST_ACTIVE = "active"             # accepted: the restraint runs from accepted_at for instalments * period
 ST_COMPLETED = "completed"       # closed: every instalment claimed
-ST_BREACHED = "breached"         # closed: a page read as a breach; the unclaimed pay back to the firm
-ST_RELEASED = "released"         # closed: the leaver gave up the rest; the unclaimed pay back to the firm
+ST_BREACHED = "breached"         # closed: a page read as a breach; the pay for periods not yet elapsed back to the firm
+ST_RELEASED = "released"         # closed: the leaver gave up the rest; the pay for periods not yet elapsed back to the firm
 ST_CANCELLED = "cancelled"       # closed: never accepted, the pay taken back by the firm
 
 # Contract-owned labels: nothing else may appear on a delimiter line.
@@ -123,12 +137,15 @@ ACTIVITY_FIRST = "activity-first"
 PAGE_FIRST = "page-first"
 
 WHY = {
-    O_BREACH: "both askings, with either block shown first, found that the page says its author currently does a "
-              "restricted activity, so the unclaimed pay went back to the firm and the bond stayed in its credit",
-    O_KEPT: "both askings found, for every restricted activity, that the page does not say its author currently does "
-            "it, so the report bond went to the leaver",
+    O_BREACH: "both askings, with either block shown first, found that the page shows its author doing a restricted "
+              "activity after leaving, so future instalments stopped: every period fully elapsed before the report "
+              "stays the leaver's, the pay for the rest went back to the firm, and the bond stayed in its credit",
+    O_KEPT: "both askings found, for every restricted activity, that the page does not show its author doing it after "
+            "leaving, so the report bond went to the leaver",
     O_UNCLEAR: "the askings did not settle every activity; the unclear fee went to the leaver, the rest of the bond "
                "stayed in the firm's credit, and the restraint runs on",
+    O_REPEAT: "the page reads exactly as a page already judged for this agreement, so it was not judged again; the "
+              "earlier reading stands, and the whole report bond went to the leaver",
 }
 
 
@@ -334,6 +351,72 @@ def _instalment(total: int, count: int, k: int) -> int:
     return total - share * (count - 1) if k == count else share
 
 
+def _paid_through(total: int, count: int, k: int) -> int:
+    """What instalments 1 to k come to: k equal shares, or the whole pay once k reaches count."""
+    if k >= count:
+        return total
+    return (total // count) * max(k, 0)
+
+
+def _firm_problem(raw: typing.Any) -> str:
+    """"" when the name may be printed in the question as a label, else why not. Never raises.
+
+    The name is printed outside every block, so it is held to an allowlist,
+    at admission and again where the prompt is built: letters, digits, spaces
+    and & . - ' only, at most four words, each starting with a capital letter
+    or a digit. It can never open or close a block or start a line.
+    """
+    if not isinstance(raw, str):
+        return "the firm's name must be text"
+    if len(raw) > MAX_FIRM + 16:
+        return "the firm's name is " + str(MIN_FIRM) + " to " + str(MAX_FIRM) + " characters"
+    name = raw.strip()
+    if len(name) < MIN_FIRM or len(name) > MAX_FIRM:
+        return "the firm's name is " + str(MIN_FIRM) + " to " + str(MAX_FIRM) + " characters"
+    bare = name
+    for sign in FIRM_SIGNS:
+        bare = bare.replace(sign, "")
+    if not (name.isascii() and bare.isalnum()):
+        return "the firm's name uses only letters, digits, spaces and & . - '"
+    words = name.split()
+    if len(words) > MAX_FIRM_WORDS or "  " in name:
+        return "the firm's name is at most " + str(MAX_FIRM_WORDS) + " words, one space apart"
+    if not all(w[:1].isupper() or w[:1].isdigit() for w in words[:MAX_FIRM_WORDS]):
+        return "each word of the firm's name starts with a capital letter or a digit"
+    return ""
+
+
+def _firm_label(raw: typing.Any) -> str:
+    """The firm's name as the question prints it: re-checked here, and a fixed phrase when it fails."""
+    return str(raw).strip() if _firm_problem(raw) == "" else FIRM_FALLBACK
+
+
+def _day_seconds(raw: typing.Any) -> int:
+    """Midnight UTC of a YYYY-MM-DD day in seconds, or -1 when it is not exactly such a day. Never raises."""
+    if not isinstance(raw, str) or len(raw) != 10 or raw[4:5] != "-" or raw[7:8] != "-":
+        return -1
+    if not (_digits(raw[:4]) and _digits(raw[5:7]) and _digits(raw[8:10])):
+        return -1
+    return _instant_seconds(raw + "T00:00:00Z")
+
+
+def _date_problem(raw: typing.Any, now: int) -> str:
+    """"" when the leaving day is a real day no later than today and at most a year back, else why not."""
+    day = _day_seconds(raw.strip() if isinstance(raw, str) else raw)
+    if day < 0:
+        return "the leaving day is written YYYY-MM-DD"
+    if day > now or day < now - MAX_LEFT_AGO:
+        return "the leaving day is no later than today and at most " + str(MAX_LEFT_AGO // 86400) + " days back"
+    return ""
+
+
+def _date_label(raw: typing.Any) -> str:
+    """The leaving day as the question prints it, "1 November 2026": re-checked here, a fixed phrase when it fails."""
+    if _day_seconds(raw) < 0:
+        return DATE_FALLBACK
+    return str(int(raw[8:10])) + " " + MONTHS[int(raw[5:7]) - 1] + " " + raw[:4]
+
+
 # ------------------------------------------------------------------- clock
 
 _MONTH_DAYS = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
@@ -436,7 +519,8 @@ HEADER = (
     "You are checking one web page against one restricted activity. A person left a firm and agreed, for pay, not "
     "to do certain work for a few months. The ACTIVITY block names one piece of that work, in words the firm wrote "
     "and the person accepted. The PAGE block holds the text of a page published below the person's own profile "
-    "address, fetched just now; its author is that person. Answer the one question below about the PAGE."
+    "address, fetched just now; its author is that person. The question names the firm the person left and the "
+    "day they left it, as the agreement records them. Answer the one question below about the PAGE."
 )
 
 UNTRUSTED = (
@@ -452,17 +536,20 @@ EITHER_ORDER = "The blocks may appear in either order; their order carries no me
 READING = (
     "The PAGE is the text of a web page with its tags removed and its spacing collapsed, and any angle bracket left "
     "in it is shown as a round bracket; read it as a visitor would read the page, and judge only what the PAGE "
-    "itself says. Work the author did in the past, work the author only plans, hopes or is invited to do, and work "
-    "done by somebody else are not work the author currently does."
+    "itself says. Work the author did before leaving, including work for the firm the author left, work the author "
+    "only plans, hopes or is invited to do, and work done by somebody else are not the author doing the activity "
+    "after leaving. A page that gives no sign that the work came after leaving does not show it."
 )
 
-QUESTION = (
-    "Does the PAGE say that its author currently does the activity in the ACTIVITY block? Answer yes, no or unclear."
-)
+# The question: two contract labels between three constant pieces, built only by _question.
+QUESTION_HEAD = "Does the PAGE show its author doing the activity in the ACTIVITY block at any time after leaving "
+QUESTION_MID = " on "
+QUESTION_TAIL = "? Answer yes, no or unclear."
 
 MEANING = (
-    "Yes means the PAGE says its author does that activity now, or has started doing it. No means it does not: it "
-    "describes other work, no work, only past or planned work, or work done by somebody else."
+    "Yes means the PAGE shows its author doing that activity after leaving: it says the author does it now, or did "
+    "or started it after leaving. No means it does not: it describes other work, no work, work from before leaving, "
+    "only planned work, or work done by somebody else."
 )
 
 RETURN_WORD = (
@@ -480,12 +567,17 @@ def _blocks(activity: str, page: str, order: str) -> str:
     return first + "\n\n" + second
 
 
-def _task(activity: str, page: str, order: str) -> str:
-    """One asking. Every instruction line is a constant; only the two blocks carry what others wrote."""
+def _question(firm: str, left_on: str) -> str:
+    """The one question, with the firm's name and the leaving day as labels the contract re-checks here."""
+    return QUESTION_HEAD + _firm_label(firm) + QUESTION_MID + _date_label(left_on) + QUESTION_TAIL
+
+
+def _task(activity: str, page: str, order: str, question: str) -> str:
+    """One asking. Every instruction line is a constant or the question; only the two blocks carry free text."""
     return (
         HEADER + "\n\n" + UNTRUSTED + "\n\n" + EITHER_ORDER + "\n\n"
         + _blocks(activity, page, order) + "\n\n"
-        + READING + "\n\n" + QUESTION + "\n" + MEANING + "\n" + RETURN_WORD
+        + READING + "\n\n" + question + "\n" + MEANING + "\n" + RETURN_WORD
     )
 
 
@@ -653,11 +745,11 @@ def _agrees(leaders_res: typing.Any, leader_fn: typing.Callable) -> bool:
     return theirs == mine
 
 
-def _judge(activities: typing.List[str], url: str) -> typing.Tuple[str, str]:
+def _judge(activities: typing.List[str], firm: str, left_on: str, url: str) -> typing.Tuple[str, str]:
     """Fetch one page and read it against every activity, inside one block. The agreed (mask, fingerprint) out.
 
-    Only the activities and the page address enter the round: no amount, no
-    address, no clock. Every node fetches the page itself and fingerprints what
+    Only the activities, the two labels of the question and the page address
+    enter the round: no amount, no address, no clock. Every node fetches the page itself and fingerprints what
     it read, so a page that does not read the same for everyone gets no
     consensus. The page is fetched once, and the body judged is the body of the
     answer whose status was read: anything but a 2xx is a failed read, never a
@@ -675,11 +767,12 @@ def _judge(activities: typing.List[str], url: str) -> typing.Tuple[str, str]:
             raise gl.vm.UserError(ERROR_TRANSIENT + " the page answered with status " + str(status) + "; only a 2xx "
                                   "answer is a page, nothing was stored and no bond was taken")
         page = _page_text(_visible(_whole_body(body)))
+        question = _question(firm, left_on)
         letters = []
         try:
             for activity in activities[:MAX_ACTIVITIES]:
-                first = gl.nondet.exec_prompt(_task(activity, page, ACTIVITY_FIRST), response_format="json")
-                second = gl.nondet.exec_prompt(_task(activity, page, PAGE_FIRST), response_format="json")
+                first = gl.nondet.exec_prompt(_task(activity, page, ACTIVITY_FIRST, question), response_format="json")
+                second = gl.nondet.exec_prompt(_task(activity, page, PAGE_FIRST, question), response_format="json")
                 letters.append(_pair(_read_word(first), _read_word(second)))
         except Exception:
             raise gl.vm.UserError(ERROR_LLM + " a model call failed; nothing was stored, no bond was taken, and the "
@@ -702,6 +795,8 @@ class Agreement:
 
     firm: Address
     leaver: Address
+    firm_name: str                # the former firm's name, a label printed in the question
+    left_on: str                  # the day the leaver left the firm, YYYY-MM-DD, a label printed in the question
     restraint: str                # as the firm wrote it
     act_1: str                    # the numbered activities, "" past n_acts
     act_2: str
@@ -718,7 +813,8 @@ class Agreement:
     status: str
     claimed: u32                  # instalments paid to the leaver
     paid: u256
-    to_firm: u256                 # the unclaimed pay, when it went back to the firm
+    earned: u32                   # set at a close: the instalments that stay the leaver's, claimed or not
+    to_firm: u256                 # the pay for periods not yet elapsed, when it went back to the firm
     reports: u32
     bonds_to_leaver: u256         # report bonds and unclear fees paid to the leaver
     closed_at: u64
@@ -734,7 +830,7 @@ class Report:
     period: u32                   # which period of the restraint the report was made in
     mask: str                     # one of Y, N, U per activity
     fp: str
-    outcome: str                  # breach, kept or unclear
+    outcome: str                  # breach, kept, unclear or repeat
     repeat_of: str                # the earlier report of the same text, whose reading this one carries; "" when first
     to_leaver: u256               # what of the bond went to the leaver
     at: u64
@@ -752,7 +848,7 @@ class Restraint(gl.Contract):
     held_total: u256                         # all garden-leave pay still held
     pay_total: u256                          # all pay ever taken in
     to_leavers: u256                         # instalments paid to leavers
-    to_firms: u256                           # unclaimed pay sent back to firms
+    to_firms: u256                           # pay for periods not yet elapsed, sent back to firms
     credit_total: u256                       # all report credit held
     deposited_total: u256
     credit_out: u256                         # credit withdrawn
@@ -793,7 +889,8 @@ class Restraint(gl.Contract):
     # ----------------------------------------------------------- opening
 
     @gl.public.write.payable
-    def open_agreement(self, leaver: str, restraint: str, profile_prefix: str, instalments: int, period: int) -> str:
+    def open_agreement(self, leaver: str, firm_name: str, left_on: str, restraint: str, profile_prefix: str,
+                       instalments: int, period: int) -> str:
         """Open garden leave and hold the whole pay; the sender is the firm, the value the pay.
 
         Open on purpose: anyone may open an agreement as a firm, and it binds
@@ -808,6 +905,8 @@ class Restraint(gl.Contract):
         length = _number_arg(period)
         acts: typing.List[str] = []
         problem = _parties_problem(me, leaver, _self_address())
+        if not problem:
+            problem = _firm_problem(firm_name)
         if not problem:
             problem = _text_problem(restraint, MIN_RESTRAINT, MAX_RESTRAINT, "the restraint")
         if not problem:
@@ -824,24 +923,28 @@ class Restraint(gl.Contract):
         now = _now()
         if not problem and now < 0:
             problem = "no readable clock on this transaction; no opening time can be recorded"
+        if not problem:
+            problem = _date_problem(left_on, now)
         if problem:
             return self._refuse(sender, value, problem)
         slots = (acts + ["", "", "", "", ""])[:MAX_ACTIVITIES]
         self.agreement_count = u32(int(self.agreement_count) + 1)
         aid = "A" + str(int(self.agreement_count))
         self.agreement_rows[aid] = Agreement(
-            firm=sender, leaver=Address(leaver.strip()), restraint=restraint.strip(), act_1=slots[0],
+            firm=sender, leaver=Address(leaver.strip()), firm_name=firm_name.strip(), left_on=left_on.strip(),
+            restraint=restraint.strip(), act_1=slots[0],
             act_2=slots[1], act_3=slots[2], act_4=slots[3], act_5=slots[4], n_acts=u32(len(acts)),
             prefix=profile_prefix.strip(), total=u256(value), instalments=u32(count), period=u64(length),
             opened_at=u64(now), accepted_at=u64(0), status=ST_OFFERED, claimed=u32(0), paid=u256(0),
-            to_firm=u256(0), reports=u32(0), bonds_to_leaver=u256(0), closed_at=u64(0), closed_by="",
+            earned=u32(0), to_firm=u256(0), reports=u32(0), bonds_to_leaver=u256(0), closed_at=u64(0), closed_by="",
         )
         self._push("party:" + me, aid)
         self._push("party:" + leaver.strip().lower(), aid)
         self.held_total = u256(int(self.held_total) + value)
         self.pay_total = u256(int(self.pay_total) + value)
         return json.dumps({"ok": True, "agreement": aid, "firm": me, "leaver": leaver.strip().lower(),
-                           "pay": str(value), "instalments": count, "period": length,
+                           "firm_name": firm_name.strip(), "left_on": left_on.strip(),
+                           "question": _question(firm_name.strip(), left_on.strip()), "pay": str(value), "instalments": count, "period": length,
                            "instalment": str(_instalment(value, count, 1)), "activities": acts,
                            "profile_prefix": profile_prefix.strip(), "status": ST_OFFERED, "opened_at": now})
 
@@ -867,7 +970,7 @@ class Restraint(gl.Contract):
         a.accepted_at = u64(now)
         self.n_accepted = u32(int(self.n_accepted) + 1)
         return json.dumps({"ok": True, "agreement": aid, "status": ST_ACTIVE, "accepted_at": now,
-                           "first_claim": now + int(a.period), "ends": now + int(a.period) * int(a.instalments)})
+                           "firm_name": str(a.firm_name), "left_on": str(a.left_on), "first_claim": now + int(a.period), "ends": now + int(a.period) * int(a.instalments)})
 
     @gl.public.write
     def cancel(self, agreement_id: str) -> str:
@@ -879,7 +982,7 @@ class Restraint(gl.Contract):
         if str(a.status) != ST_OFFERED:
             _fail(aid + " is " + str(a.status) + "; only an agreement never accepted is cancelled")
         now = _clock()
-        self._close(a, ST_CANCELLED, now, "")
+        self._close(a, ST_CANCELLED, now, "", 0)
         return self._closed(aid, a)
 
     # ------------------------------------------------------------ the pay
@@ -890,6 +993,8 @@ class Restraint(gl.Contract):
 
         Instalment k is paid from accepted_at + k * period. Claims are made in
         order, one per call; the last one closes the agreement as completed.
+        Earned pay is paid: after a breach or a release, every instalment whose
+        period had fully elapsed by then may still be claimed.
         """
         aid = self._id_arg(agreement_id, "the agreement id")
         a = self._agreement(aid)
@@ -898,11 +1003,15 @@ class Restraint(gl.Contract):
         status = str(a.status)
         if status == ST_OFFERED:
             _fail(aid + " has not been accepted; the restraint and the pay start when the leaver accepts")
-        if status != ST_ACTIVE:
-            _fail(aid + " is " + status + "; nothing more is paid from it")
-        now = _clock()
         k = int(a.claimed) + 1
         count = int(a.instalments)
+        if status == ST_BREACHED or status == ST_RELEASED:
+            if k > int(a.earned):
+                _fail(aid + " is " + status + "; the " + str(int(a.earned)) + " instalments earned before it closed "
+                      "have been claimed, and nothing more is paid from it")
+        elif status != ST_ACTIVE:
+            _fail(aid + " is " + status + "; nothing more is paid from it")
+        now = _clock()
         due = int(a.accepted_at) + k * int(a.period)
         if now < due:
             _fail("instalment " + str(k) + " of " + aid + " is claimed from " + str(due) + ", when period " + str(k)
@@ -912,19 +1021,19 @@ class Restraint(gl.Contract):
         a.paid = u256(int(a.paid) + amount)
         self.held_total = u256(int(self.held_total) - amount)
         self.to_leavers = u256(int(self.to_leavers) + amount)
-        if k == count:
-            self._close(a, ST_COMPLETED, now, "")
+        if status == ST_ACTIVE and k == count:
+            self._close(a, ST_COMPLETED, now, "", count)
         _Payee(a.leaver).emit_transfer(value=u256(amount))
         return json.dumps({"ok": True, "agreement": aid, "instalment": k, "of": count, "paid": str(amount),
                            "status": str(a.status), "left": str(int(a.total) - int(a.paid))})
 
     @gl.public.write
     def release(self, agreement_id: str) -> str:
-        """The leaver gives up the instalments not yet claimed and is free of the restraint; the rest goes to the firm.
+        """The leaver gives up the periods not yet elapsed and is free of the restraint; their pay goes to the firm.
 
         The way out for a leaver who wants the competing job: say so, and the
-        pay for the months not kept goes back. Instalments already claimed stay
-        claimed.
+        pay for the months not kept goes back. Every period fully elapsed stays
+        the leaver's, claimed or not.
         """
         aid = self._id_arg(agreement_id, "the agreement id")
         a = self._agreement(aid)
@@ -933,7 +1042,7 @@ class Restraint(gl.Contract):
         if str(a.status) != ST_ACTIVE:
             _fail(aid + " is " + str(a.status) + "; only an accepted agreement still running is released")
         now = _clock()
-        self._close(a, ST_RELEASED, now, "")
+        self._close(a, ST_RELEASED, now, "", self._earned(a, now))
         return self._closed(aid, a)
 
     # ------------------------------------------------------------ credit
@@ -982,11 +1091,14 @@ class Restraint(gl.Contract):
         Only the firm, on an accepted agreement, before the restraint ends, with
         REPORT_BOND of credit. Every refusal comes before the fetch, and nothing
         is written before the round, so a round that does not settle leaves no
-        trace and takes no bond. The money moves in this call: breach sends the
-        unclaimed pay back to the firm and leaves the bond in its credit; kept
-        sends the bond to the leaver; unclear sends UNCLEAR_FEE to the leaver. A
-        page whose agreed fingerprint was already read for this agreement is a
-        repeat: it is refused and recorded, and the earlier reading stands.
+        trace and takes no bond. The money moves in this call: breach stops
+        future instalments, leaves every period fully elapsed to the leaver and
+        sends the pay for the rest back to the firm, the bond staying in its
+        credit; kept sends the bond to the leaver; unclear sends UNCLEAR_FEE to
+        the leaver. A page whose agreed fingerprint was already judged for this
+        agreement is a repeat: it is not judged again, the earlier reading
+        stands, and the whole bond goes to the leaver. The fingerprint is known
+        only after the round, so a repeat cannot be refused before it.
         """
         if not isinstance(agreement_id, str) or not isinstance(url, str):
             _fail("the agreement id and the page address are strings")
@@ -1014,13 +1126,15 @@ class Restraint(gl.Contract):
         if held < REPORT_BOND:
             _fail("a report stakes " + str(REPORT_BOND) + " atto (0.05 GEN) of credit and this address holds "
                   + str(held) + "; deposit() first")
-        mask, fp = _judge(self._activities(a), url)
+        mask, fp = _judge(self._activities(a), str(a.firm_name), str(a.left_on), url)
         key = aid + "|" + fp
         repeat_of = str(self.seen[key]) if fp and key in self.seen else ""
         if repeat_of:
             mask = str(self.report_rows[repeat_of].mask)
-        outcome = _outcome(mask)
-        to_leaver = REPORT_BOND if outcome == O_KEPT else (UNCLEAR_FEE if outcome == O_UNCLEAR else 0)
+            outcome = O_REPEAT
+        else:
+            outcome = _outcome(mask)
+        to_leaver = REPORT_BOND if outcome in (O_KEPT, O_REPEAT) else (UNCLEAR_FEE if outcome == O_UNCLEAR else 0)
         in_period = (now - start) // length + 1
         self.report_count = u32(int(self.report_count) + 1)
         rid = "R" + str(int(self.report_count))
@@ -1031,28 +1145,29 @@ class Restraint(gl.Contract):
         if fp and not repeat_of:
             self.seen[key] = rid
         a.reports = u32(int(a.reports) + 1)
-        if repeat_of:
-            self.n_repeats = u32(int(self.n_repeats) + 1)
         if to_leaver > 0:
             self.balances[who] = u256(held - to_leaver)
             self.credit_total = u256(int(self.credit_total) - to_leaver)
             self.bonds_out = u256(int(self.bonds_out) + to_leaver)
             a.bonds_to_leaver = u256(int(a.bonds_to_leaver) + to_leaver)
         if outcome == O_BREACH:
-            self._close(a, ST_BREACHED, now, rid)
+            self._close(a, ST_BREACHED, now, rid, self._earned(a, now))
         elif outcome == O_KEPT:
             self.n_kept = u32(int(self.n_kept) + 1)
+        elif outcome == O_REPEAT:
+            self.n_repeats = u32(int(self.n_repeats) + 1)
         else:
             self.n_unclear = u32(int(self.n_unclear) + 1)
         if to_leaver > 0:
             _Payee(a.leaver).emit_transfer(value=u256(to_leaver))
-        out = {"ok": repeat_of == "", "agreement": aid, "report": rid, "url": url, "period": in_period,
+        out = {"ok": True, "agreement": aid, "report": rid, "url": url, "period": in_period,
                "mask": mask, "fp": fp, "outcome": outcome, "repeat_of": repeat_of, "to_leaver": str(to_leaver),
-               "to_firm": str(int(a.to_firm)), "status": str(a.status), "credit": str(self._credit(who)),
-               "at": now, "why": WHY[outcome]}
+               "earned": int(a.earned), "to_firm": str(int(a.to_firm)), "status": str(a.status),
+               "credit": str(self._credit(who)), "at": now, "why": WHY[outcome]}
         if repeat_of:
-            out["reason"] = ("this page reads exactly as the page of " + repeat_of + " already judged for " + aid
-                             + "; it is not judged twice, and that reading stands")
+            out["repeat"] = ("this page reads exactly as the page of " + repeat_of + ", already judged for " + aid
+                             + "; it was not judged again, the reading of " + repeat_of + " stands, and the whole "
+                             "report bond went to the leaver")
         return json.dumps(out)
 
     # ------------------------------------------------------------- views
@@ -1123,12 +1238,17 @@ class Restraint(gl.Contract):
         return json.dumps({
             "report": {
                 "value": "{\"mask\": \"<one of Y, N, U per activity>\", \"fp\": \"<16 hex>\"}",
-                "question": QUESTION,
+                "question": QUESTION_HEAD + "<firm_name> on <left_on, written as 1 November 2026>" + QUESTION_TAIL,
+                "labels": "the former firm's name and the leaving day are printed in the question as contract labels, "
+                          "not blocks: the name is held to letters, digits, spaces and & . - ', at most "
+                          + str(MAX_FIRM_WORDS) + " words each starting with a capital or a digit, the day to "
+                          "YYYY-MM-DD, at admission and again where the prompt is built; both are shown to the "
+                          "leaver before accepting",
                 "meaning": MEANING,
                 "reading": READING,
                 "askings": [
-                    "for each activity k, 1: blocks ACTIVITY k then PAGE: " + QUESTION,
-                    "for each activity k, 2: blocks PAGE then ACTIVITY k: " + QUESTION,
+                    "for each activity k, 1: blocks ACTIVITY k then PAGE, then the question",
+                    "for each activity k, 2: blocks PAGE then ACTIVITY k, then the question",
                 ],
                 "answers": "each reply is read only as a JSON object whose \"answer\" is yes, no or unclear, case and "
                            "surrounding spaces aside; anything else is unreadable, and an unreadable answer reads as "
@@ -1137,7 +1257,8 @@ class Restraint(gl.Contract):
                            M_UNCLEAR: "anything else, an unreadable answer included"},
                 "combine": {O_BREACH: "a Y for any activity",
                             O_KEPT: "an N for every activity",
-                            O_UNCLEAR: "anything else"},
+                            O_UNCLEAR: "anything else",
+                            O_REPEAT: "the agreed fp was already judged for the agreement; the mask is not used"},
                 "page": "fetched once by every validator itself, and the body of that one answer is what is judged: "
                         "a status outside 200 to 299 is a failed read and stores nothing; the body, at most "
                         + str(MAX_RAW_BYTES) + " bytes and " + str(MAX_RAW_PAGE) + " characters, read as UTF-8, "
@@ -1146,34 +1267,43 @@ class Restraint(gl.Contract):
                         + " characters, is judged whole, and a longer page is never judged in part and stores "
                         "nothing; fp is the first " + str(FP_CHARS) + " hex characters of its sha256",
                 "once": "each text is judged once per agreement: a page whose agreed fp was already judged for the "
-                        "agreement is a repeat, refused and recorded, the earlier reading stands and the bond moves "
-                        "as that reading sent it",
+                        "agreement is reported with ok true and outcome repeat; it is not judged again, the earlier "
+                        "reading stands, and the whole report bond goes to the leaver. The fp is known only after "
+                        "the round, so a repeat cannot be refused before it",
             },
             "compared": "the whole value, by exact equality; every validator fetches the page and asks every asking "
                         "itself inside one consensus block, disagrees if its own rerun raises, and never agrees with "
                         "a leader that raised",
-            "not_asked": "the model reads one activity and the page and nothing else: no pay, no address, no clock, "
-                         "no name",
+            "not_asked": "the model reads one activity, the page, the former firm's name and the leaving day, and "
+                         "nothing else: no pay, no address, no clock",
             "money": {
                 "open_agreement": "payable, no model; the value is the whole pay, " + str(MIN_PAY) + " to "
                                   + str(MAX_PAY) + " atto, held here",
                 "cancel": "the firm, while the leaver has not accepted: the whole pay back to the firm",
                 "claim": "the leaver, instalment k from accepted_at + k * period, in order: an equal share, the last "
-                         "one carrying the remainder of the division; the last claim closes it completed",
-                "release": "the leaver, while it runs: the unclaimed pay back to the firm, closed released",
-                O_BREACH: "the unclaimed pay back to the firm, closed breached; the bond stays in the firm's credit",
+                         "one carrying the remainder of the division; the last claim closes it completed; after a "
+                         "breach or a release, every instalment earned before it may still be claimed",
+                "release": "the leaver, while it runs: every period fully elapsed stays the leaver's, claimed or not; "
+                           "the pay for the rest back to the firm, closed released",
+                O_BREACH: "future instalments stop: every period fully elapsed before the report stays the leaver's, "
+                          "claimed or not, and may still be claimed; the pay for the periods not yet elapsed back to "
+                          "the firm, closed breached; the bond stays in the firm's credit",
                 O_KEPT: "the report bond, " + str(REPORT_BOND) + " atto, to the leaver",
                 O_UNCLEAR: str(UNCLEAR_FEE) + " atto of the bond to the leaver, the rest stays in the firm's credit",
+                O_REPEAT: "the whole report bond, " + str(REPORT_BOND) + " atto, to the leaver; nothing else moves",
                 "credit": "deposit() adds report credit, withdraw() takes all of it back",
                 "refusal": "a refused payable call returns everything sent, in the same transaction; every other "
-                           "refused call raises and took nothing, except a repeat report, which is recorded",
-                "balance": "the contract holds exactly the unclaimed pay of open agreements and the report credit",
+                           "refused call raises and took nothing",
+                "balance": "the contract holds exactly the pay not yet paid to leavers nor sent back to firms, and the "
+                           "report credit",
             },
             "who": {
-                "open_agreement": "anyone; the sender is the firm; the leaver is another address",
+                "open_agreement": "anyone; the sender is the firm and names itself and the leaving day; the leaver "
+                                  "is another address",
                 "accept": "the leaver, while offered, repeating the profile prefix exactly",
                 "cancel": "the firm, while offered",
-                "claim": "the leaver, on an accepted agreement, once the period of the next instalment has ended",
+                "claim": "the leaver, once the period of the next instalment has ended: while it runs, and after a "
+                         "breach or a release up to the instalments earned before it",
                 "release": "the leaver, on an accepted agreement still running",
                 "report": "the firm, on an accepted agreement, before accepted_at + instalments * period, a page "
                           "below the profile prefix, staking " + str(REPORT_BOND) + " atto of credit",
@@ -1187,6 +1317,8 @@ class Restraint(gl.Contract):
                 "period_seconds": [MIN_PERIOD, MAX_PERIOD], "report_bond_atto": str(REPORT_BOND),
                 "unclear_fee_atto": str(UNCLEAR_FEE), "page_chars": MAX_PAGE_TEXT, "raw_page_chars": MAX_RAW_PAGE,
                 "raw_page_bytes": MAX_RAW_BYTES, "reply_chars": MAX_REPLY, "rows_per_page": PAGE,
+                "firm_name": [MIN_FIRM, MAX_FIRM], "firm_words": MAX_FIRM_WORDS,
+                "left_on_days_back": MAX_LEFT_AGO // 86400,
                 "text": "printable ASCII on one line; activities numbered 1. 2. ... in order",
             },
             "limits": [
@@ -1195,16 +1327,16 @@ class Restraint(gl.Contract):
                 "can write to",
                 "the network reads only what the leaver publishes there; competing work never written below the "
                 "prefix is invisible to it",
-                "every page below the prefix is read as it stands at the report: a page that still describes the "
-                "leaver's old work in the present tense reads as current, so the leaver clears such pages before "
-                "accepting",
+                "every page is read against the leaving day and the former firm: a page that shows the work only "
+                "for that firm or only before that day reads no, and a page that gives no sign of when may read "
+                "unclear, never yes; the firm names the day and itself, and the leaver sees both before accepting",
                 "the page must read the same for every validator at the moment of the report; a page that changes "
                 "between fetches, or that cannot be fetched, stores nothing and takes no bond",
                 "text only: tags are removed and images, scripts and attachments are not read; a page whose text "
                 "runs past " + str(MAX_PAGE_TEXT) + " characters is never judged, so the firm reports a shorter one",
-                "an instalment whose period has ended but which the leaver has not claimed is still unclaimed pay: "
-                "a breach sends it back to the firm",
-                "the network judges what the page says the author does now, never whether it is true",
+                "a breach stops only future instalments: every period fully elapsed before the report stays the "
+                "leaver's, claimed or not, so work begun inside an elapsed period is still paid for",
+                "the network judges what the page says the author did after leaving, never whether it is true",
             ],
             "untrusted": "every activity and every fetched page is fenced (< and > replaced, never deleted), sits "
                          "between delimiter lines tagged with the start of its own sha256, and the prompt says "
@@ -1249,12 +1381,25 @@ class Restraint(gl.Contract):
         ids = [str(self.index[list_key + "|" + str(k)]) for k in range(start, min(total, start + size))]
         return total, start, size, ids
 
-    def _close(self, a: Agreement, status: str, now: int, by: str) -> None:
-        """The single exit for unclaimed pay: whatever is not yet paid goes back to the firm. One transfer, O(1)."""
-        rest = int(a.total) - int(a.paid)
+    def _earned(self, a: Agreement, now: int) -> int:
+        """How many periods have fully elapsed by now: their instalments are the leaver's, claimed or not.
+
+        Never fewer than were claimed, since a claim waits for its period; _close caps it at the instalments.
+        """
+        return max(0, (now - int(a.accepted_at)) // int(a.period))
+
+    def _close(self, a: Agreement, status: str, now: int, by: str, keep: int) -> None:
+        """The single exit for unearned pay: the first `keep` instalments stay the leaver's; the rest goes to the firm.
+
+        One transfer, O(1). What the leaver has not yet claimed of its `keep`
+        instalments stays held here for claim() to pay.
+        """
+        kept = min(keep, int(a.instalments))
+        rest = int(a.total) - _paid_through(int(a.total), int(a.instalments), kept)
         a.status = status
         a.closed_at = u64(now)
         a.closed_by = by
+        a.earned = u32(kept)
         a.to_firm = u256(rest)
         self.held_total = u256(int(self.held_total) - rest)
         self.to_firms = u256(int(self.to_firms) + rest)
@@ -1271,7 +1416,8 @@ class Restraint(gl.Contract):
 
     def _closed(self, aid: str, a: Agreement) -> str:
         return json.dumps({"ok": True, "agreement": aid, "status": str(a.status), "to_firm": str(int(a.to_firm)),
-                           "firm": _low(a.firm), "paid_to_leaver": str(int(a.paid)), "closed_at": int(a.closed_at)})
+                           "firm": _low(a.firm), "paid_to_leaver": str(int(a.paid)), "earned": int(a.earned),
+                           "closed_at": int(a.closed_at)})
 
     def _refuse(self, sender: typing.Any, value: int, reason: str) -> str:
         """Return what was sent and answer ok: false. Never raises."""
@@ -1291,6 +1437,7 @@ class Restraint(gl.Contract):
         ends = start + length * count if status != ST_OFFERED else 0
         earned = 0
         if status != ST_OFFERED and status != ST_ACTIVE:
+            earned = int(a.earned)
             phase = "closed"
         elif status == ST_OFFERED:
             phase = "awaiting_acceptance"
@@ -1300,13 +1447,15 @@ class Restraint(gl.Contract):
             earned = min(count, (now - start) // length)
             phase = "restrained" if now < ends else "ended"
         return {
-            "agreement": aid, "firm": _low(a.firm), "leaver": _low(a.leaver), "restraint": str(a.restraint),
+            "agreement": aid, "firm": _low(a.firm), "leaver": _low(a.leaver), "firm_name": str(a.firm_name),
+            "left_on": str(a.left_on), "question": _question(str(a.firm_name), str(a.left_on)),
+            "restraint": str(a.restraint),
             "activities": self._activities(a), "profile_prefix": str(a.prefix), "pay": str(int(a.total)),
             "instalments": count, "period": length, "instalment": str(_instalment(int(a.total), count, 1)),
             "opened_at": int(a.opened_at), "accepted_at": start, "ends": ends, "status": status, "phase": phase,
             "in_period": earned + 1 if phase == "restrained" else 0,
-            "claimable": max(0, earned - claimed) if status == ST_ACTIVE else 0,
-            "claimed": claimed, "paid": str(int(a.paid)),
+            "claimable": max(0, earned - claimed) if status in (ST_ACTIVE, ST_BREACHED, ST_RELEASED) else 0,
+            "earned": earned, "claimed": claimed, "paid": str(int(a.paid)),
             "next_claim_from": start + (claimed + 1) * length if status == ST_ACTIVE else 0,
             "reports": int(a.reports), "bonds_to_leaver": str(int(a.bonds_to_leaver)),
             "to_firm": str(int(a.to_firm)), "closed_at": int(a.closed_at), "closed_by": str(a.closed_by), "now": now,

@@ -11,8 +11,9 @@
  * REPO is "<owner>/<name>" on GitHub; when it is not set it is read from `git remote get-url origin`. The script
  * fetches the pages itself before it deploys anything, and stops if they are not there.
  *
- * Three accounts the script generates and funds itself play the whole story: FIRM, a payroll company, opens garden
- * leave for LEAVER with the restraint "1. Selling payroll software to restaurants. 2. Working for Ledgerly or
+ * Three accounts the script generates and funds itself play the whole story: FIRM, the payroll company Brightbook,
+ * opens garden leave for LEAVER, who left it on LEFT_ON (default 2026-10-30, which must be no later than today and at
+ * most 366 days back), with the restraint "1. Selling payroll software to restaurants. 2. Working for Ledgerly or
  * Tillpoint." and LEAVER's profile prefix, profile/ at COMMIT; STRANGER tries what only the others may do.
  *
  * Phases:
@@ -25,14 +26,16 @@
  *        STRANGER reports garden.html for A1: refused, only the firm may
  *        FIRM reports the repository's README, outside the prefix: refused before anything is fetched
  *        FIRM: garden.html (allotment notes)                 kept; the 0.05 GEN bond to LEAVER
- *        FIRM: garden.html again                             repeat: refused and recorded, the earlier reading stands,
- *                                                            the bond to LEAVER again
+ *        FIRM: about.html (an old about-me page, the job at Brightbook)   kept, or unclear; the bond or the fee to LEAVER
+ *        FIRM: garden.html again                             outcome repeat, ok true: not judged again, the whole
+ *                                                            bond to LEAVER
  *      the chain clock passes the end of period 1; LEAVER claims instalment 1 (0.1 GEN)
- *        FIRM: plateful.html (sells payroll software to restaurants)   breach; the unclaimed 0.2 GEN back to FIRM
- *      LEAVER is refused instalment 2: the agreement is breached.
+ *        FIRM: plateful.html (since leaving, sells payroll software to restaurants)   breach; future instalments stop:
+ *                                                            the periods fully elapsed stay LEAVER's, the rest back to FIRM
+ *      LEAVER claims what was earned before the breach, if anything is left, and is then refused: nothing more is paid.
  *   C  the deployed code is read back and compared with contracts/restraint.py byte for byte; the views are checked
  *      against what the run did; FIRM takes its credit back; the contract holds nothing; every account ends where
- *      the money says: LEAVER up one instalment and two bonds, FIRM down the same.
+ *      the money says: LEAVER up the earned instalments and the bonds and fees, FIRM down the same.
  *
  * Every refusal is a signed transaction. Balances are read before and after every step that moves money.
  * Transactions are polled with eth_getTransactionByHash, never with views (gen_call is limited to 30 a minute
@@ -100,7 +103,7 @@ if (PROFILE.length > 120) {
   console.log(`The profile prefix ${PROFILE} must be at most 120 characters (the contract's own rule); use a shorter repository name.`);
   process.exit(2);
 }
-const PAGE = { garden: PROFILE + "garden.html", plateful: PROFILE + "plateful.html" };
+const PAGE = { garden: PROFILE + "garden.html", about: PROFILE + "about.html", plateful: PROFILE + "plateful.html" };
 const OUTSIDE = RAW_ROOT + "README.md";          // a real page of the same commit, but not below the prefix
 const LOCAL = {};
 for (const [name, address] of Object.entries(PAGE)) {
@@ -296,14 +299,17 @@ const untilPast = async (aid, field) => {
 
 // ---------- the demonstration: one restraint, the same pages as tests/test_pure.py ----------
 const RESTRAINT = "1. Selling payroll software to restaurants. 2. Working for Ledgerly or Tillpoint.";
-const QUESTION = "Does the PAGE say that its author currently does the activity in the ACTIVITY block? Answer yes, no or unclear.";
+const FIRM_NAME = "Brightbook";
+const LEFT_ON = String(process.env.LEFT_ON || "2026-10-30");
+const QUESTION = "Does the PAGE show its author doing the activity in the ACTIVITY block at any time after leaving <firm_name> on <left_on, written as 1 November 2026>? Answer yes, no or unclear.";
 const BOND = GEN / 20n, FEE = GEN / 100n;
 const PAY = { A1: 3n * GEN / 10n, A2: GEN / 10n };
 const COUNT = { A1: 3, A2: 1 };
 const PERIOD = { A1: 900, A2: 300 };
 const SHARE = PAY.A1 / 3n;
+const paidThrough = (k) => (k >= COUNT.A1 ? PAY.A1 : SHARE * BigInt(k));
 const LEAVER = () => st.accounts.leaver;
-const toLeaver = (j) => (j?.outcome === "kept" ? BOND : j?.outcome === "unclear" ? FEE : 0n);
+const toLeaver = (j) => (j?.outcome === "kept" || j?.outcome === "repeat" ? BOND : j?.outcome === "unclear" ? FEE : 0n);
 
 await fundOnce("firm", 10); await fundOnce("leaver", 2); await fundOnce("stranger", 2);
 if (!st.start) { st.start = {}; for (const k of Object.keys(ROLES)) st.start[k] = String(await balance(acct[k].address)); st.started = new Date().toISOString(); save(); }
@@ -314,13 +320,13 @@ console.log(`\n[${stamp()}] ---- phase A: deploy, two agreements opened, one acc
 st.contract = st.contract || await deploy("deploy", "firm", "../../contracts/restraint.py");
 save();
 console.log(`      Restraint at ${st.contract}`);
-const self = await call("openSelf", "firm", "open_agreement", [st.accounts.firm, RESTRAINT, PROFILE, COUNT.A1, PERIOD.A1], { value: PAY.A1, watch: ["firm"], expect: { firm: 0n } });
+const self = await call("openSelf", "firm", "open_agreement", [st.accounts.firm, FIRM_NAME, LEFT_ON, RESTRAINT, PROFILE, COUNT.A1, PERIOD.A1], { value: PAY.A1, watch: ["firm"], expect: { firm: 0n } });
 ok("FIRM names itself as the leaver: refused, and the 0.3 GEN comes back in the same transaction", self.exec !== "ERROR" && self.j?.ok === false && String(self.j?.reason).includes("the leaver is somebody other than the firm") && self.j?.returned === String(PAY.A1) && moved(self, "firm", 0n), `${votes(self)}  ${self.j?.reason}`);
 const ag = {};
 for (const key of ["A1", "A2"]) {
-  const r = await call("open" + key, "firm", "open_agreement", [LEAVER(), RESTRAINT, PROFILE, COUNT[key], PERIOD[key]], { value: PAY[key], watch: ["firm"], expect: { firm: -PAY[key] } });
+  const r = await call("open" + key, "firm", "open_agreement", [LEAVER(), FIRM_NAME, LEFT_ON, RESTRAINT, PROFILE, COUNT[key], PERIOD[key]], { value: PAY[key], watch: ["firm"], expect: { firm: -PAY[key] } });
   ag[key] = r.j?.agreement || "";
-  ok(`FIRM opens ${ag[key]} for LEAVER and holds ${Number(PAY[key]) / 1e18} GEN in ${COUNT[key]} instalment(s) of ${PERIOD[key]} s`, r.j?.ok === true && /^A\d+$/.test(ag[key]) && r.j?.status === "offered" && r.j?.pay === String(PAY[key]) && r.j?.activities?.length === 2 && moved(r, "firm", -PAY[key]), `${votes(r)}  ${r.msg.slice(0, 120)}`);
+  ok(`FIRM opens ${ag[key]} for LEAVER and holds ${Number(PAY[key]) / 1e18} GEN in ${COUNT[key]} instalment(s) of ${PERIOD[key]} s`, r.j?.ok === true && /^A\d+$/.test(ag[key]) && r.j?.status === "offered" && r.j?.pay === String(PAY[key]) && r.j?.activities?.length === 2 && r.j?.firm_name === FIRM_NAME && r.j?.left_on === LEFT_ON && moved(r, "firm", -PAY[key]), `${votes(r)}  ${r.msg.slice(0, 120)}`);
 }
 const strangerAccept = await call("acceptStranger", "stranger", "accept", [ag.A1, PROFILE]);
 ok(`STRANGER may not accept ${ag.A1}`, refused(strangerAccept, "only the leaver ") && refused(strangerAccept, " may accept " + ag.A1), `${votes(strangerAccept)}  ${strangerAccept.msg.slice(0, 120)}`);
@@ -345,17 +351,24 @@ ok("FIRM reports the repository's README, outside the prefix the leaver signed: 
 const r1 = await call("reportGarden", "firm", "report", [ag.A1, PAGE.garden], { watch: ["leaver"], expect: (j) => ({ leaver: toLeaver(j) }) });
 ok(`every validator reads "garden.html" (allotment notes on garden leave): kept, the 0.05 GEN bond to LEAVER`, r1.applied && r1.j?.outcome === "kept" && r1.j?.mask === "NN" && r1.j?.status === "active" && /^[0-9a-f]{16}$/.test(String(r1.j?.fp)) && moved(r1, "leaver", BOND), `${votes(r1)}  ${JSON.stringify({ report: r1.j?.report, mask: r1.j?.mask, outcome: r1.j?.outcome, fp: r1.j?.fp })}`);
 if (r1.j?.fp) note(`the stored fingerprint ${r1.j.fp}; this checkout's file collapsed gives ${fpOf(LOCAL.garden)}`);
-const r2 = await call("reportGardenAgain", "firm", "report", [ag.A1, PAGE.garden], { watch: ["leaver"], expect: (j) => ({ leaver: toLeaver(j) }) });
-ok(`"garden.html" reported again reads the same: refused as a repeat of ${r1.j?.report}, recorded, the earlier reading stands and the bond goes to LEAVER again`, r2.applied && r2.j?.ok === false && r2.j?.repeat_of === r1.j?.report && r2.j?.outcome === r1.j?.outcome && r2.j?.fp === r1.j?.fp && moved(r2, "leaver", toLeaver(r1.j)), `${votes(r2)}  ${JSON.stringify({ report: r2.j?.report, repeat_of: r2.j?.repeat_of, reason: r2.j?.reason })}`);
+const rAbout = await call("reportAbout", "firm", "report", [ag.A1, PAGE.about], { watch: ["leaver"], expect: (j) => ({ leaver: toLeaver(j) }) });
+ok(`every validator reads "about.html" (an old about-me page: the job at Brightbook, nothing after leaving it): not a breach`, rAbout.applied && (rAbout.j?.outcome === "kept" || rAbout.j?.outcome === "unclear") && rAbout.j?.status === "active" && moved(rAbout, "leaver", toLeaver(rAbout.j)), `${votes(rAbout)}  ${JSON.stringify({ report: rAbout.j?.report, mask: rAbout.j?.mask, outcome: rAbout.j?.outcome })}`);
+const r2 = await call("reportGardenAgain", "firm", "report", [ag.A1, PAGE.garden], { watch: ["leaver"], expect: { leaver: BOND } });
+ok(`"garden.html" reported again reads the same: ok, outcome repeat of ${r1.j?.report}, not judged again, and the whole 0.05 GEN bond goes to LEAVER`, r2.applied && r2.j?.ok === true && r2.j?.outcome === "repeat" && r2.j?.repeat_of === r1.j?.report && r2.j?.fp === r1.j?.fp && r2.j?.to_leaver === String(BOND) && String(r2.j?.repeat).includes("the whole report bond went to the leaver") && moved(r2, "leaver", BOND), `${votes(r2)}  ${JSON.stringify({ report: r2.j?.report, repeat_of: r2.j?.repeat_of, repeat: r2.j?.repeat })}`);
 await untilPast(ag.A1, "next_claim_from");
 const c1 = await call("claim1", "leaver", "claim", [ag.A1], { watch: ["leaver"], expect: { leaver: SHARE } });
 ok(`period 1 has ended: LEAVER claims instalment 1 of ${ag.A1}, 0.1 GEN`, c1.j?.instalment === 1 && c1.j?.paid === String(SHARE) && moved(c1, "leaver", SHARE), `${votes(c1)}  ${c1.msg.slice(0, 120)}`);
-const rest = PAY.A1 - SHARE;
-const r3 = await call("reportPlateful", "firm", "report", [ag.A1, PAGE.plateful], { watch: ["firm", "leaver"], expect: (j) => (j?.outcome === "breach" ? { firm: rest, leaver: 0n } : {}) });
-ok(`every validator reads "plateful.html" (sells payroll software to restaurants): breach on activity 1, the unclaimed 0.2 GEN back to FIRM`, r3.applied && r3.j?.outcome === "breach" && r3.j?.mask === "YN" && r3.j?.status === "breached" && r3.j?.to_firm === String(rest) && moved(r3, "firm", rest) && moved(r3, "leaver", 0n), `${votes(r3)}  ${JSON.stringify({ report: r3.j?.report, mask: r3.j?.mask, outcome: r3.j?.outcome, fp: r3.j?.fp })}`);
+const restOf = (j) => PAY.A1 - paidThrough(Number(j?.earned || 0));
+const r3 = await call("reportPlateful", "firm", "report", [ag.A1, PAGE.plateful], { watch: ["firm", "leaver"], expect: (j) => (j?.outcome === "breach" ? { firm: restOf(j), leaver: 0n } : {}) });
+const earned = Number(r3.j?.earned || 0), rest = restOf(r3.j);
+ok(`every validator reads "plateful.html" (since leaving Brightbook, sells payroll software to restaurants): breach on activity 1; ${earned} elapsed period(s) stay LEAVER's, ${Number(rest) / 1e18} GEN back to FIRM`, r3.applied && r3.j?.outcome === "breach" && r3.j?.mask === "YN" && r3.j?.status === "breached" && earned >= 1 && r3.j?.to_firm === String(rest) && moved(r3, "firm", rest) && moved(r3, "leaver", 0n), `${votes(r3)}  ${JSON.stringify({ report: r3.j?.report, mask: r3.j?.mask, outcome: r3.j?.outcome, earned, fp: r3.j?.fp })}`);
 if (r3.j?.fp) note(`the stored fingerprint ${r3.j.fp}; this checkout's file collapsed gives ${fpOf(LOCAL.plateful)}`);
+for (let k = 2; k <= earned; k++) {
+  const late = await call("claimEarned" + k, "leaver", "claim", [ag.A1], { watch: ["leaver"], expect: { leaver: SHARE } });
+  ok(`period ${k} had fully elapsed before the breach: LEAVER still claims instalment ${k} after it`, late.j?.instalment === k && late.j?.status === "breached" && moved(late, "leaver", SHARE), `${votes(late)}  ${late.msg.slice(0, 120)}`);
+}
 const after = await call("claimAfterBreach", "leaver", "claim", [ag.A1]);
-ok(`LEAVER may not claim instalment 2 of ${ag.A1}: it is breached`, refused(after, ag.A1 + " is breached; nothing more is paid from it"), `${votes(after)}  ${after.msg.slice(0, 140)}`);
+ok(`LEAVER may not claim instalment ${earned + 1} of ${ag.A1}: its period had not elapsed before the breach`, refused(after, ag.A1 + " is breached; the " + earned + " instalments earned before it closed have been claimed"), `${votes(after)}  ${after.msg.slice(0, 160)}`);
 
 // ================================================================ phase C
 console.log(`\n[${stamp()}] ---- phase C: the code read back, the views, the credit, the balances`);
@@ -365,24 +378,25 @@ console.log(`\n[${stamp()}] ---- phase C: the code read back, the views, the cre
   st.code = { address: st.contract, bytes: chain.length, sha256: sha(chain), file_bytes: file.length, file_sha256: sha(file), identical: Buffer.compare(chain, file) === 0 };
   save();
   ok(`the code deployed at ${st.contract} is byte for byte contracts/restraint.py`, st.code.identical, `${chain.length} bytes, sha256 ${st.code.sha256}`);
+  const bonds = toLeaver(r1.j) + toLeaver(rAbout.j) + BOND;
   const a1 = await seen("agreementA1", "agreement", [ag.A1]);
-  ok(`agreement(${ag.A1}) reads breached by ${r3.j?.report}: one instalment paid, the rest to FIRM`, a1.status === "breached" && a1.closed_by === r3.j?.report && a1.paid === String(SHARE) && a1.to_firm === String(rest) && a1.restraint === RESTRAINT && a1.profile_prefix === PROFILE && a1.bonds_to_leaver === String(toLeaver(r1.j) * 2n), JSON.stringify({ status: a1.status, closed_by: a1.closed_by }));
+  ok(`agreement(${ag.A1}) reads breached by ${r3.j?.report}: the earned instalments paid, the rest to FIRM`, a1.status === "breached" && a1.closed_by === r3.j?.report && a1.earned === earned && a1.paid === String(paidThrough(earned)) && a1.to_firm === String(rest) && a1.restraint === RESTRAINT && a1.profile_prefix === PROFILE && a1.firm_name === FIRM_NAME && a1.left_on === LEFT_ON && a1.bonds_to_leaver === String(bonds), JSON.stringify({ status: a1.status, closed_by: a1.closed_by }));
   const rows = await seen("reportsA1", "reports_of", [ag.A1, 0, 20]);
-  ok(`reports_of(${ag.A1}) lists the three judged reports with their pages, masks, outcomes and the repeat`, rows.total === 3 && rows.rows?.[0]?.url === PAGE.garden && rows.rows?.[1]?.repeat_of === r1.j?.report && rows.rows?.[2]?.outcome === "breach" && rows.rows?.[2]?.fp === r3.j?.fp, JSON.stringify((rows.rows || []).map((r) => [r.report, r.mask, r.outcome, r.repeat_of])));
+  ok(`reports_of(${ag.A1}) lists the four reports with their pages, masks, outcomes and the repeat`, rows.total === 4 && rows.rows?.[0]?.url === PAGE.garden && rows.rows?.[1]?.url === PAGE.about && rows.rows?.[2]?.outcome === "repeat" && rows.rows?.[2]?.repeat_of === r1.j?.report && rows.rows?.[3]?.outcome === "breach" && rows.rows?.[3]?.fp === r3.j?.fp, JSON.stringify((rows.rows || []).map((r) => [r.report, r.mask, r.outcome, r.repeat_of])));
   const mine = await seen("agreementsOfLeaver", "agreements_of", [st.accounts.leaver, 0, 20]);
   ok("agreements_of(LEAVER) finds both agreements as the leaver, with the address in any letter case", mine.total === 2 && (mine.rows || []).every((r) => r.role === "leaver"), JSON.stringify({ total: mine.total }));
   const stats = await seen("stats", "stats", []);
-  ok("stats(): two agreements, one cancelled, one breached, one kept, one repeat, one refused payment returned", stats.held === "0" && stats.agreements === 2 && stats.cancelled === 1 && stats.breached === 1 && stats.reports === 3 && stats.repeats === 1 && stats.refused_payments === 1, JSON.stringify(stats));
+  ok("stats(): two agreements, one cancelled, one breached, four reports, one repeat, one refused payment returned", stats.held === "0" && stats.agreements === 2 && stats.cancelled === 1 && stats.breached === 1 && stats.reports === 4 && stats.repeats === 1 && stats.refused_payments === 1, JSON.stringify(stats));
   const rules = await seen("rules", "rules", []);
-  ok("rules() publishes the question word for word, both orders, the comparison, the combine table and the limits", rules.report?.question === QUESTION && String(rules.report?.askings?.[1]).startsWith("for each activity k, 2: blocks PAGE then ACTIVITY k: ") && String(rules.compared).includes("exact equality") && rules.report?.combine?.breach === "a Y for any activity" && String(rules.limits?.[0]).includes("a breach is final"), "");
-  const back = CREDIT - 2n * toLeaver(r1.j);
+  ok("rules() publishes the question word for word, both orders, the comparison, the combine table and the limits", rules.report?.question === QUESTION && rules.report?.askings?.[1] === "for each activity k, 2: blocks PAGE then ACTIVITY k, then the question" && String(rules.money?.repeat).includes("to the leaver") && String(rules.compared).includes("exact equality") && rules.report?.combine?.breach === "a Y for any activity" && String(rules.limits?.[0]).includes("a breach is final"), "");
+  const back = CREDIT - bonds;
   const w = await call("withdrawCredit", "firm", "withdraw", [], { watch: ["firm"], expect: { firm: back } });
   ok(`FIRM takes its ${Number(back) / 1e18} GEN of credit back`, w.j?.withdrawn === String(back) && moved(w, "firm", back), `${votes(w)}  ${w.msg.slice(0, 100)}`);
   ok("the contract's own balance is zero", (await balance(st.contract)) === 0n, String(await balance(st.contract)));
   st.end = {}; for (const k of Object.keys(ROLES)) st.end[k] = String(await balance(acct[k].address));
   st.ended = new Date().toISOString(); save();
   const net = (k) => BigInt(st.end[k]) - BigInt(st.start[k]);
-  const owed = SHARE + 2n * toLeaver(r1.j);
+  const owed = paidThrough(earned) + bonds;
   const want = { firm: -owed, leaver: owed, stranger: 0n };
   ok(`every account ends where the money says: LEAVER up ${Number(owed) / 1e18} GEN, FIRM down the same, STRANGER unchanged`, Object.keys(want).every((k) => net(k) === want[k]), Object.keys(want).map((k) => k.toUpperCase() + " " + Number(net(k)) / 1e18).join("  "));
 }
