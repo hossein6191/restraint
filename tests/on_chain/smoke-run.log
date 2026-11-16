@@ -1,0 +1,84 @@
+[keeper] starting 2026-11-16T11:03:17.618Z
+[11:03:23] FIRM      0x82E4d84d3e58db774578AE713e1575742dE0a549
+           LEAVER    0xa8219f067A2042D00513208813C0B91Fa290984D
+           STRANGER  0x0D2c7F2567e915882Cd081933e4dC7a1d108Eca7
+           profile https://raw.githubusercontent.com/hossein6191/restraint/41b5a6892888a7f373021c661f6b0ab87138a1a4/profile/
+
+[11:03:23] ---- phase A: deploy, two agreements opened, one accepted, one cancelled
+      [11:04:02] FIRM deploy restraint.py  0xc2d59c64a442c505556fa17eb747db0efa82ae0a0b92f1411cff9467563de776  3 agree, 0 disagree, 2 idle  SUCCESS  0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8
+      Restraint at 0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8
+      [11:04:40] FIRM open_agreement(58db774578AE713e1575742dE0a549, Brightbook, 2026-10-30, ing for Ledgerly or Tillpoint., 21c661f6b0ab87138a1a4/profile/, 3, 900) +0.3 GEN  0x5fce721038501518900794702ea0a861b103556e198ecfcf76f97823cf864016  4 agree, 0 disagree, 1 idle  SUCCESS
+PASS  FIRM names itself as the leaver: refused, and the 0.3 GEN comes back in the same transaction  - 4 agree, 0 disagree, 1 idle  the leaver is somebody other than the firm
+      [11:05:20] FIRM open_agreement(2042D00513208813C0B91Fa290984D, Brightbook, 2026-10-30, ing for Ledgerly or Tillpoint., 21c661f6b0ab87138a1a4/profile/, 3, 900) +0.3 GEN  0xd340feb0d9c3c96d28c3adf99fce6bf98a082a2b0c013a56a5b629c267ece364  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  FIRM opens A1 for LEAVER and holds 0.3 GEN in 3 instalment(s) of 900 s  - 3 agree, 0 disagree, 2 idle  -{"ok": true, "agreement": "A1", "firm": "0x82e4d84d3e58db774578ae713e1575742de0a549", "leaver": "0xa8219f067a2042d00513
+      [11:06:00] FIRM open_agreement(2042D00513208813C0B91Fa290984D, Brightbook, 2026-10-30, ing for Ledgerly or Tillpoint., 21c661f6b0ab87138a1a4/profile/, 1, 300) +0.1 GEN  0xc7d5fdf69ff14d5743f7e858cdf9757ac9181d52f0f4a0ad4f06fe92bbe2ce7c  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  FIRM opens A2 for LEAVER and holds 0.1 GEN in 1 instalment(s) of 300 s  - 3 agree, 0 disagree, 2 idle  -{"ok": true, "agreement": "A2", "firm": "0x82e4d84d3e58db774578ae713e1575742de0a549", "leaver": "0xa8219f067a2042d00513
+      [11:06:40] STRANGER accept(A1, 21c661f6b0ab87138a1a4/profile/)  0xf8306ec8ef2ba544ed385a2be43a555bdafd8342f574557ccb42f327201d5825  4 agree, 0 disagree, 1 idle  ERROR
+PASS  STRANGER may not accept A1  - 4 agree, 0 disagree, 1 idle  [EXPECTED] only the leaver 0xa8219f067a2042d00513208813c0b91fa290984d may accept A1
+      [11:07:23] LEAVER accept(A1, 8a7f373021c661f6b0ab87138a1a4/)  0x5e0b0d241697d88be694dc1f794fa2d1be92aa55e11e8c95a04817bba9981d5c  3 agree, 0 disagree, 2 idle  ERROR
+PASS  LEAVER may not accept A1 without repeating its profile prefix exactly  - 3 agree, 0 disagree, 2 idle  [EXPECTED] accept repeats the profile prefix of A1 exactly, https://raw.githubusercontent.com/hossein6191/restraint/41b5a6892888a7f373021c66
+      [11:08:03] LEAVER accept(A1, 21c661f6b0ab87138a1a4/profile/)  0x81104d2098073b30653e6b6ecf8a9b60e5b5d494ec5841974a604b2c948a5f0c  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  LEAVER accepts A1, repeating the prefix: the restraint starts  - 3 agree, 0 disagree, 2 idle  {"ok": true, "agreement": "A1", "status": "active", "accepted_at": 1794827245, "firm_name": "Brightbook", "left_on": "20
+      [11:08:42] FIRM cancel(A2)  0xe491b3d30fc920462cdb7a2bda6942201a094a71285552b4b08d9459c50cc573  4 agree, 0 disagree, 1 idle  SUCCESS
+PASS  FIRM cancels A2, never accepted: the 0.1 GEN back  - 4 agree, 0 disagree, 1 idle  {"ok": true, "agreement": "A2", "status": "cancelled", "to_firm": "100000000000000000", "firm": "0x82e4d84d3e58db774578a
+      [11:09:22] LEAVER claim(A1)  0xd19b0e7ec88ad60f63420d297942d19b5cbc896dbc28109c2e0fa8cb62ec070a  3 agree, 0 disagree, 2 idle  ERROR
+PASS  LEAVER may not claim instalment 1 of A1 before its period ends  - 3 agree, 0 disagree, 2 idle  [EXPECTED] instalment 1 of A1 is claimed from 1794828145, when period 1 ends; in another 821 seconds
+      [11:10:00] FIRM deposit() +0.2 GEN  0x3fdbbaa97453ca266fb1231fcb2ac3c8ef70d7f05f7683cc03789745d473394c  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  FIRM deposits 0.2 GEN of report credit  - 3 agree, 0 disagree, 2 idle  {"ok": true, "address": "0x82e4d84d3e58db774578ae713e1575742de0a549", "added": "200000000000000000",
+
+[11:10:01] ---- phase B: the leaver's pages read by the validators on the live web
+      [11:10:39] STRANGER report(A1, b87138a1a4/profile/garden.html)  0x4c0582873a0a90ad26e6f06555fb246733d0e0f8d031f0f9d011c20c8ea38822  3 agree, 0 disagree, 2 idle  ERROR
+PASS  STRANGER may not report a page against A1  - 3 agree, 0 disagree, 2 idle  [EXPECTED] only the firm of A1 may report a page against its restraint
+      [11:11:19] FIRM report(A1, 1c661f6b0ab87138a1a4/README.md)  0x4703d839d46f84ff0aad991efc2bef579dfe0e8ed3dca6186b5844ab85194444  4 agree, 0 disagree, 1 idle  ERROR
+PASS  FIRM reports the repository's README, outside the prefix the leaver signed: refused before any fetch, no bond  - 4 agree, 0 disagree, 1 idle  [EXPECTED] the page is not below https://raw.githubusercontent.com/hossein6191/restraint/41b5a6892888a7f373021c661f6b0ab87138a1a4/profile/, the profile prefix t
+      [11:12:21] FIRM report(A1, b87138a1a4/profile/garden.html)  0xccbd7907d3593528800e56319910366f3ce5549ed14fd5e4657c254d8d28ba9a  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  every validator reads "garden.html" (allotment notes on garden leave): kept, the 0.05 GEN bond to LEAVER  - 3 agree, 0 disagree, 2 idle  {"report":"R1","mask":"NN","outcome":"kept","fp":"388a3723ba880aec"}
+      .. the stored fingerprint 388a3723ba880aec; this checkout's file collapsed gives 388a3723ba880aec
+      [11:14:17] FIRM report(A1, ab87138a1a4/profile/about.html)  0x3f0e6b7d77c20c8bc2e1b38702344bd065faad05ada59e4abd09053244b30085  3 agree, 2 disagree, 0 idle  SUCCESS
+PASS  every validator reads "about.html" (an old about-me page: the job at Brightbook, nothing after leaving it): not a breach  - 3 agree, 2 disagree, 0 idle  {"report":"R2","mask":"NN","outcome":"kept"}
+      [11:15:14] FIRM report(A1, b87138a1a4/profile/garden.html)  0x3b6b3f38aaeed5978c4a66e0d0fef540c281515a2c6474d9508166f1b78fb4e6  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  "garden.html" reported again reads the same: ok, outcome repeat of R1, not judged again, and the whole 0.05 GEN bond goes to LEAVER  - 3 agree, 0 disagree, 2 idle  {"report":"R3","repeat_of":"R1","repeat":"this page reads exactly as the page of R1, already judged for A1; it was not judged again, the reading of R1 stands, and the whole report bond went to the leaver"}
+      [11:23:23] LEAVER claim(A1)  0x4606f0edcf6ed4b0d1b26e1dc9cb6959acafe57ae929880b858bb77a4091e59b  5 agree, 0 disagree, 0 idle  SUCCESS
+PASS  period 1 has ended: LEAVER claims instalment 1 of A1, 0.1 GEN  - 5 agree, 0 disagree, 0 idle  {"ok": true, "agreement": "A1", "instalment": 1, "of": 3, "paid": "100000000000000000", "status": "active", "left": "200
+      [11:24:21] FIRM report(A1, 7138a1a4/profile/plateful.html)  0x6d5d68b205895bfbf3b72f46c5dfeda0decad501eb45e0d92cdcd62767067507  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  every validator reads "plateful.html" (since leaving Brightbook, sells payroll software to restaurants): breach on activity 1; 1 elapsed period(s) stay LEAVER's, 0.2 GEN back to FIRM  - 3 agree, 0 disagree, 2 idle  {"report":"R4","mask":"YN","outcome":"breach","earned":1,"fp":"29b71eaacfab20ad"}
+      .. the stored fingerprint 29b71eaacfab20ad; this checkout's file collapsed gives 29b71eaacfab20ad
+      [11:25:06] LEAVER claim(A1)  0x1acc8e85eb818a30f499dfc9292c6b0eb5f84e0ba06207e6a141eef0bd68d260  3 agree, 0 disagree, 2 idle  ERROR
+PASS  LEAVER may not claim instalment 2 of A1: its period had not elapsed before the breach  - 3 agree, 0 disagree, 2 idle  [EXPECTED] A1 is breached; the 1 instalments earned before it closed have been claimed, and nothing more is paid from it
+
+[11:25:06] ---- phase C: the code read back, the views, the credit, the balances
+PASS  the code deployed at 0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8 is byte for byte contracts/restraint.py  - 74228 bytes, sha256 c888494db811acf9a4bf235c597c81edf3b557724597f72e046d7a07709ae2fe
+PASS  agreement(A1) reads breached by R4: the earned instalments paid, the rest to FIRM  - {"status":"breached","closed_by":"R4"}
+PASS  reports_of(A1) lists the four reports with their pages, masks, outcomes and the repeat  - [["R1","NN","kept",""],["R2","NN","kept",""],["R3","NN","repeat","R1"],["R4","YN","breach",""]]
+PASS  agreements_of(LEAVER) finds both agreements as the leaver, with the address in any letter case  - {"total":2}
+PASS  stats(): two agreements, one cancelled, one breached, four reports, one repeat, one refused payment returned  - {"agreements":2,"accepted":1,"cancelled":1,"completed":0,"breached":1,"released":0,"reports":4,"kept":2,"unclear":0,"repeats":1,"held":"0","pay":"400000000000000000","to_leavers":"100000000000000000","to_firms":"300000000000000000","credit":"50000000000000000","deposited":"200000000000000000","credit_out":"0","bonds_out":"150000000000000000","refused_payments":1,"returned":"300000000000000000"}
+PASS  rules() publishes the question word for word, both orders, the comparison, the combine table and the limits
+      [11:26:02] FIRM withdraw()  0x2485529338e1ea68bbae154d6bdbaa011e4275118cfc62eece22112bd8867427  3 agree, 0 disagree, 2 idle  SUCCESS
+PASS  FIRM takes its 0.05 GEN of credit back  - 3 agree, 0 disagree, 2 idle  {"ok": true, "address": "0x82e4d84d3e58db774578ae713e1575742de0a549", "withdrawn": "5000000000000000
+PASS  the contract's own balance is zero  - 0
+PASS  every account ends where the money says: LEAVER up 0.25 GEN, FIRM down the same, STRANGER unchanged  - FIRM -0.25  LEAVER 0.25  STRANGER 0
+
+26 passed, 0 failed
+Restraint: 0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8  https://explorer-studio.genlayer.com/address/0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8
+transactions: 19 in 19 steps; sent a second time: none
+deploy              0xc2d59c64a442c505556fa17eb747db0efa82ae0a0b92f1411cff9467563de776 3 agree, 0 disagree, 2 idle SUCCESS
+openSelf            0x5fce721038501518900794702ea0a861b103556e198ecfcf76f97823cf864016 4 agree, 0 disagree, 1 idle SUCCESS
+openA1              0xd340feb0d9c3c96d28c3adf99fce6bf98a082a2b0c013a56a5b629c267ece364 3 agree, 0 disagree, 2 idle SUCCESS
+openA2              0xc7d5fdf69ff14d5743f7e858cdf9757ac9181d52f0f4a0ad4f06fe92bbe2ce7c 3 agree, 0 disagree, 2 idle SUCCESS
+acceptStranger      0xf8306ec8ef2ba544ed385a2be43a555bdafd8342f574557ccb42f327201d5825 4 agree, 0 disagree, 1 idle ERROR
+acceptWrongPrefix   0x5e0b0d241697d88be694dc1f794fa2d1be92aa55e11e8c95a04817bba9981d5c 3 agree, 0 disagree, 2 idle ERROR
+acceptA1            0x81104d2098073b30653e6b6ecf8a9b60e5b5d494ec5841974a604b2c948a5f0c 3 agree, 0 disagree, 2 idle SUCCESS
+cancelA2            0xe491b3d30fc920462cdb7a2bda6942201a094a71285552b4b08d9459c50cc573 4 agree, 0 disagree, 1 idle SUCCESS
+claimEarly          0xd19b0e7ec88ad60f63420d297942d19b5cbc896dbc28109c2e0fa8cb62ec070a 3 agree, 0 disagree, 2 idle ERROR
+deposit             0x3fdbbaa97453ca266fb1231fcb2ac3c8ef70d7f05f7683cc03789745d473394c 3 agree, 0 disagree, 2 idle SUCCESS
+reportStranger      0x4c0582873a0a90ad26e6f06555fb246733d0e0f8d031f0f9d011c20c8ea38822 3 agree, 0 disagree, 2 idle ERROR
+reportOutside       0x4703d839d46f84ff0aad991efc2bef579dfe0e8ed3dca6186b5844ab85194444 4 agree, 0 disagree, 1 idle ERROR
+reportGarden        0xccbd7907d3593528800e56319910366f3ce5549ed14fd5e4657c254d8d28ba9a 3 agree, 0 disagree, 2 idle SUCCESS
+reportAbout         0x3f0e6b7d77c20c8bc2e1b38702344bd065faad05ada59e4abd09053244b30085 3 agree, 2 disagree, 0 idle SUCCESS
+reportGardenAgain   0x3b6b3f38aaeed5978c4a66e0d0fef540c281515a2c6474d9508166f1b78fb4e6 3 agree, 0 disagree, 2 idle SUCCESS
+claim1              0x4606f0edcf6ed4b0d1b26e1dc9cb6959acafe57ae929880b858bb77a4091e59b 5 agree, 0 disagree, 0 idle SUCCESS
+reportPlateful      0x6d5d68b205895bfbf3b72f46c5dfeda0decad501eb45e0d92cdcd62767067507 3 agree, 0 disagree, 2 idle SUCCESS
+claimAfterBreach    0x1acc8e85eb818a30f499dfc9292c6b0eb5f84e0ba06207e6a141eef0bd68d260 3 agree, 0 disagree, 2 idle ERROR
+withdrawCredit      0x2485529338e1ea68bbae154d6bdbaa011e4275118cfc62eece22112bd8867427 3 agree, 0 disagree, 2 idle SUCCESS
+
+exit 0

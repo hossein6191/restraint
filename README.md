@@ -211,7 +211,34 @@ GenLayer Studio, chain 61999. The contract pins its runner in its first line.
 
 ## Evidence
 
-The on-chain run is recorded here once it has run.
+Run on 16 Nov 2026 on GenLayer Studio (chain 61999) by `tests/on_chain/smoke.mjs`, from generated accounts funded from the
+Studio faucet, none of them anybody's wallet: FIRM, LEAVER and STRANGER are fresh accounts funded for this run.. **26 passed, 0 failed**; transactions: 19 in 19 steps; sent a second time: none.
+The whole log is `tests/on_chain/smoke-run.log`. A garden-leave page and an old about-me page read as kept; a repeat of the garden page is not judged again; a page showing the leaver selling payroll software to restaurants since leaving reads as a breach on activity 1, the earned instalment stays the leaver's and the rest goes back to the firm.
+
+- `restraint.py` deployed at [`0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8`](https://explorer-studio.genlayer.com/address/0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8)
+
+- the code deployed at 0x4F5cbb8CEF967d604105bB77f36b0e13b7e49CB8 is byte for byte contracts/restraint.py: 74228 bytes, sha256 c888494db811acf9a4bf235c597c81edf3b557724597f72e046d7a07709ae2fe
+
+| step | by | transactions | votes |
+|---|---|---|---|
+| FIRM names itself as the leaver: refused, and the 0.3 GEN comes back in the same transaction | FIRM | [0xc2d59c64…](https://explorer-studio.genlayer.com/tx/0xc2d59c64a442c505556fa17eb747db0efa82ae0a0b92f1411cff9467563de776), [0x5fce7210…](https://explorer-studio.genlayer.com/tx/0x5fce721038501518900794702ea0a861b103556e198ecfcf76f97823cf864016) | 4 agree, 0 disagree, 1 idle |
+| FIRM opens A1 for LEAVER and holds 0.3 GEN in 3 instalment(s) of 900 s | FIRM | [0xd340feb0…](https://explorer-studio.genlayer.com/tx/0xd340feb0d9c3c96d28c3adf99fce6bf98a082a2b0c013a56a5b629c267ece364) | 3 agree, 0 disagree, 2 idle |
+| FIRM opens A2 for LEAVER and holds 0.1 GEN in 1 instalment(s) of 300 s | FIRM | [0xc7d5fdf6…](https://explorer-studio.genlayer.com/tx/0xc7d5fdf69ff14d5743f7e858cdf9757ac9181d52f0f4a0ad4f06fe92bbe2ce7c) | 3 agree, 0 disagree, 2 idle |
+| STRANGER may not accept A1 | STRANGER | [0xf8306ec8…](https://explorer-studio.genlayer.com/tx/0xf8306ec8ef2ba544ed385a2be43a555bdafd8342f574557ccb42f327201d5825) | 4 agree, 0 disagree, 1 idle |
+| LEAVER may not accept A1 without repeating its profile prefix exactly | LEAVER | [0x5e0b0d24…](https://explorer-studio.genlayer.com/tx/0x5e0b0d241697d88be694dc1f794fa2d1be92aa55e11e8c95a04817bba9981d5c) | 3 agree, 0 disagree, 2 idle |
+| LEAVER accepts A1, repeating the prefix: the restraint starts | LEAVER | [0x81104d20…](https://explorer-studio.genlayer.com/tx/0x81104d2098073b30653e6b6ecf8a9b60e5b5d494ec5841974a604b2c948a5f0c) | 3 agree, 0 disagree, 2 idle |
+| FIRM cancels A2, never accepted: the 0.1 GEN back | FIRM | [0xe491b3d3…](https://explorer-studio.genlayer.com/tx/0xe491b3d30fc920462cdb7a2bda6942201a094a71285552b4b08d9459c50cc573) | 4 agree, 0 disagree, 1 idle |
+| LEAVER may not claim instalment 1 of A1 before its period ends | LEAVER | [0xd19b0e7e…](https://explorer-studio.genlayer.com/tx/0xd19b0e7ec88ad60f63420d297942d19b5cbc896dbc28109c2e0fa8cb62ec070a) | 3 agree, 0 disagree, 2 idle |
+| FIRM deposits 0.2 GEN of report credit | FIRM | [0x3fdbbaa9…](https://explorer-studio.genlayer.com/tx/0x3fdbbaa97453ca266fb1231fcb2ac3c8ef70d7f05f7683cc03789745d473394c) | 3 agree, 0 disagree, 2 idle |
+| STRANGER may not report a page against A1 | STRANGER | [0x4c058287…](https://explorer-studio.genlayer.com/tx/0x4c0582873a0a90ad26e6f06555fb246733d0e0f8d031f0f9d011c20c8ea38822) | 3 agree, 0 disagree, 2 idle |
+| FIRM reports the repository's README, outside the prefix the leaver signed: refused before any fetch, no bond | FIRM | [0x4703d839…](https://explorer-studio.genlayer.com/tx/0x4703d839d46f84ff0aad991efc2bef579dfe0e8ed3dca6186b5844ab85194444) | 4 agree, 0 disagree, 1 idle |
+| every validator reads "garden.html" (allotment notes on garden leave): kept, the 0.05 GEN bond to LEAVER | FIRM | [0xccbd7907…](https://explorer-studio.genlayer.com/tx/0xccbd7907d3593528800e56319910366f3ce5549ed14fd5e4657c254d8d28ba9a) | 3 agree, 0 disagree, 2 idle |
+| every validator reads "about.html" (an old about-me page: the job at Brightbook, nothing after leaving it): not a breach | FIRM | [0x3f0e6b7d…](https://explorer-studio.genlayer.com/tx/0x3f0e6b7d77c20c8bc2e1b38702344bd065faad05ada59e4abd09053244b30085) | 3 agree, 2 disagree, 0 idle |
+| "garden.html" reported again reads the same: ok, outcome repeat of R1, not judged again, and the whole 0.05 GEN bond goes to LEAVER | FIRM | [0x3b6b3f38…](https://explorer-studio.genlayer.com/tx/0x3b6b3f38aaeed5978c4a66e0d0fef540c281515a2c6474d9508166f1b78fb4e6) | 3 agree, 0 disagree, 2 idle |
+| period 1 has ended: LEAVER claims instalment 1 of A1, 0.1 GEN | LEAVER | [0x4606f0ed…](https://explorer-studio.genlayer.com/tx/0x4606f0edcf6ed4b0d1b26e1dc9cb6959acafe57ae929880b858bb77a4091e59b) | 5 agree, 0 disagree, 0 idle |
+| every validator reads "plateful.html" (since leaving Brightbook, sells payroll software to restaurants): breach on activity 1; 1 elapsed period(s) stay LEAVER's, 0.2 GEN back to FIRM | FIRM | [0x6d5d68b2…](https://explorer-studio.genlayer.com/tx/0x6d5d68b205895bfbf3b72f46c5dfeda0decad501eb45e0d92cdcd62767067507) | 3 agree, 0 disagree, 2 idle |
+| LEAVER may not claim instalment 2 of A1: its period had not elapsed before the breach | LEAVER | [0x1acc8e85…](https://explorer-studio.genlayer.com/tx/0x1acc8e85eb818a30f499dfc9292c6b0eb5f84e0ba06207e6a141eef0bd68d260) | 3 agree, 0 disagree, 2 idle |
+| FIRM takes its 0.05 GEN of credit back | FIRM | [0x24855293…](https://explorer-studio.genlayer.com/tx/0x2485529338e1ea68bbae154d6bdbaa011e4275118cfc62eece22112bd8867427) | 3 agree, 0 disagree, 2 idle |
 
 ## Licence
 
